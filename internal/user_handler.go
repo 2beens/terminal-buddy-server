@@ -1,12 +1,10 @@
 package internal
 
 import (
-	"encoding/json"
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 type UserHandler struct {
@@ -29,42 +27,42 @@ func (handler *UserHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	username := vars["username"]
 	user, err := handler.db.GetUser(username)
 	if err != nil {
-		w.Write([]byte("no user: " + username))
+		sendSimpleErrResponse(w, "username missing")
 		return
 	}
 
-	userJsonData, err := json.Marshal(user)
-	w.Write(userJsonData)
+	sendResp(w, Response{
+		Ok:      true,
+		Message: "ok",
+		Data:    user,
+	})
 }
 
 func (handler *UserHandler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		log.Errorf("error parsing form values [%s]: %s", r.URL.Path, err.Error())
+		sendSimpleErrResponse(w, "parsing error")
 		return
 	}
 
 	username := r.FormValue("username")
 	if len(username) == 0 {
-		w.Write([]byte("no username"))
+		sendSimpleErrResponse(w, "username missing")
 		return
 	}
 
-	password := r.FormValue("password")
-	if len(password) == 0 {
-		w.Write([]byte("no username"))
+	passwordHash := r.FormValue("password_hash")
+	if len(passwordHash) == 0 {
+		sendSimpleErrResponse(w, "password hash missing")
 		return
 	}
 
-	passwordHashed, err := HashPassword(password)
-	if err != nil {
-		w.Write([]byte(err.Error()))
-	}
-
-	user := NewUser(username, passwordHashed)
+	user := NewUser(username, passwordHash)
 
 	if err := handler.db.SaveUser(user); err == nil {
-		w.Write([]byte("ok"))
+		sendSimpleResponse(w, "ok")
 	} else {
-		w.Write([]byte(err.Error()))
+		log.Errorf("error saving new user: %s", err.Error())
+		sendSimpleErrResponse(w, err.Error())
 	}
 }

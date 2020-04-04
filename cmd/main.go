@@ -2,7 +2,6 @@ package main
 
 import (
 	"TerminalBuddyServer/internal"
-	"fmt"
 	"os"
 	"strings"
 
@@ -10,7 +9,6 @@ import (
 )
 
 func main() {
-	fmt.Println("OK")
 	setupTraceLoggingToStdout()
 	log.Debug("starting ...")
 
