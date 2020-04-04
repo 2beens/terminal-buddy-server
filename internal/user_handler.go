@@ -18,16 +18,32 @@ func NewUserHandler(db BuddyDb, userRouter *mux.Router) {
 		router: userRouter,
 	}
 
-	userRouter.HandleFunc("/{username}", handler.handleGet).Methods("GET")
+	userRouter.HandleFunc("/login", handler.handleLogin).Methods("POST")
 	userRouter.HandleFunc("/register", handler.handleRegister).Methods("POST")
 }
 
-func (handler *UserHandler) handleGet(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	username := vars["username"]
+func (handler *UserHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		log.Errorf("error parsing form values [%s]: %s", r.URL.Path, err.Error())
+		sendSimpleErrResponse(w, "parsing error")
+		return
+	}
+
+	username := r.FormValue("username")
 	user, err := handler.db.GetUser(username)
-	if err != nil {
-		sendSimpleErrResponse(w, "username missing")
+	if len(username) == 0 || err != nil {
+		sendSimpleErrResponse(w, "username missing / cannot get user")
+		return
+	}
+
+	passwordHash := r.FormValue("password_hash")
+	if len(passwordHash) == 0 {
+		sendSimpleErrResponse(w, "password hash missing")
+		return
+	}
+
+	if user.PasswordHash != passwordHash {
+		sendSimpleErrResponse(w, "wrong credentials")
 		return
 	}
 

@@ -1,9 +1,11 @@
 package internal
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -52,6 +54,7 @@ func (s *Server) routerSetup(db BuddyDb) *mux.Router {
 	NewUserHandler(db, r.PathPrefix("/user").Subrouter())
 
 	// handle remind
+	NewRemindHandler(db, r.PathPrefix("/remind").Subrouter())
 
 	// middleware
 	r.Use(s.getLoggingMiddleware())
@@ -60,6 +63,8 @@ func (s *Server) routerSetup(db BuddyDb) *mux.Router {
 }
 
 func sendResp(w io.Writer, response Response) {
+	// TODO: pass status code
+
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
 		log.Warnf("#120412 failed to send response: %s", err)
@@ -88,12 +93,25 @@ func sendSimpleErrResponse(w io.Writer, message string) {
 	})
 }
 
+func logReqBody(r *http.Request) {
+	buf, bodyErr := ioutil.ReadAll(r.Body)
+	if bodyErr != nil {
+		log.Print("bodyErr ", bodyErr.Error())
+		return
+	}
+
+	rdr1 := ioutil.NopCloser(bytes.NewBuffer(buf))
+	rdr2 := ioutil.NopCloser(bytes.NewBuffer(buf))
+	log.Printf("BODY: %q", rdr1)
+	r.Body = rdr2
+}
+
 func (s *Server) getLoggingMiddleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userAgent := r.Header.Get("User-Agent")
-			sessionID := r.Header.Get("X-Ispend-SessionID")
-			log.Tracef(" ====> request [%s] path: [%s] [sessionID: %s] [UA: %s]", r.Method, r.URL.Path, sessionID, userAgent)
+			log.Tracef(" ====> request [%s] path: [%s] [UA: %s]", r.Method, r.URL.Path, userAgent)
+			//logReqBody(r)
 			next.ServeHTTP(w, r)
 		})
 	}

@@ -39,3 +39,16 @@ func (db *MemDb) GetUser(username string) (*User, error) {
 	}
 	return nil, errorUserNotFound
 }
+
+func (db *MemDb) NewReminder(username string, message string, dueDate int64) error {
+	user, err := db.GetUser(username)
+	if err != nil {
+		return err
+	}
+
+	id := string(len(user.Reminders))
+	reminder := NewReminder(id, message, dueDate)
+	user.Reminders = append(user.Reminders, &reminder)
+
+	return nil
+}
