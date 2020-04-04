@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -104,9 +105,12 @@ func (handler *RemindHandler) handleNew(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	log.Println("message: " + message)
+	log.Println("dueDateStr: " + dueDateStr)
+
 	dueDate, err := strconv.ParseInt(dueDateStr, 10, 64)
 	if err != nil {
-		sendSimpleErrResponse(w, "due date error")
+		sendSimpleErrResponse(w, fmt.Sprintf("due date (%v) error", dueDateStr))
 		return
 	}
 
