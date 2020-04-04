@@ -127,13 +127,7 @@ func (handler *RemindHandler) handleAll(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		log.Errorf("error parsing form values [%s]: %s", r.URL.Path, err.Error())
-		sendSimpleErrResponse(w, "parsing error")
-		return
-	}
-
-	passwordHash := r.FormValue("password_hash")
+	passwordHash := r.Header.Get("Term-Buddy-Pass-Hash")
 	if len(passwordHash) == 0 {
 		sendSimpleErrResponse(w, "password hash missing")
 		return
