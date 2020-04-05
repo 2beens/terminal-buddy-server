@@ -1,11 +1,8 @@
 package internal
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -62,9 +59,8 @@ func (s *Server) routerSetup(db BuddyDb) *mux.Router {
 	return r
 }
 
-func sendResp(w io.Writer, response Response) {
-	// TODO: pass status code
-
+func sendResp(w http.ResponseWriter, statusCode int, response Response) {
+	w.WriteHeader(statusCode)
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
 		log.Warnf("#120412 failed to send response: %s", err)
@@ -77,33 +73,28 @@ func sendResp(w io.Writer, response Response) {
 	}
 }
 
-func sendSimpleResponse(w io.Writer, message string) {
-	sendResp(w, Response{
+func sendSimpleResponse(w http.ResponseWriter, message string) {
+	sendResp(w, http.StatusOK, Response{
 		Ok:      true,
 		Message: message,
 		Data:    nil,
 	})
 }
 
-func sendSimpleErrResponse(w io.Writer, message string) {
-	sendResp(w, Response{
+func sendSimpleErrResponse(w http.ResponseWriter, statusCode int, message string) {
+	sendResp(w, statusCode, Response{
 		Ok:      false,
 		Message: message,
 		Data:    nil,
 	})
 }
 
-func logReqBody(r *http.Request) {
-	buf, bodyErr := ioutil.ReadAll(r.Body)
-	if bodyErr != nil {
-		log.Print("bodyErr ", bodyErr.Error())
-		return
-	}
-
-	rdr1 := ioutil.NopCloser(bytes.NewBuffer(buf))
-	rdr2 := ioutil.NopCloser(bytes.NewBuffer(buf))
-	log.Printf("BODY: %q", rdr1)
-	r.Body = rdr2
+func sendSimpleBadRequestResponse(w http.ResponseWriter, message string) {
+	sendResp(w, http.StatusBadRequest, Response{
+		Ok:      false,
+		Message: message,
+		Data:    nil,
+	})
 }
 
 func (s *Server) getLoggingMiddleware() func(next http.Handler) http.Handler {
@@ -111,7 +102,6 @@ func (s *Server) getLoggingMiddleware() func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userAgent := r.Header.Get("User-Agent")
 			log.Tracef(" ====> request [%s] path: [%s] [UA: %s]", r.Method, r.URL.Path, userAgent)
-			//logReqBody(r)
 			next.ServeHTTP(w, r)
 		})
 	}
