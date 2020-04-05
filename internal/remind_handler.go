@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -52,9 +53,15 @@ func (handler *RemindHandler) handleGet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	rid := r.FormValue("remind_id")
-	if len(rid) == 0 {
+	idString := r.FormValue("remind_id")
+	if len(idString) == 0 {
 		sendSimpleBadRequestResponse(w, "id not provided")
+		return
+	}
+
+	rid, err := strconv.Atoi(idString)
+	if err != nil {
+		sendSimpleBadRequestResponse(w, "id value invalid")
 		return
 	}
 
@@ -64,10 +71,17 @@ func (handler *RemindHandler) handleGet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	reminderJsonBytes, err := json.Marshal(reminder)
+	if err != nil {
+		log.Errorf("error marshaling reminder [%s]: %s", reminder.Id, err.Error())
+		sendSimpleErrResponse(w, http.StatusInternalServerError, "marshaling error")
+		return
+	}
+
 	sendResp(w, http.StatusOK, Response{
-		Ok:      true,
-		Message: "ok",
-		Data:    reminder,
+		Ok:            true,
+		Message:       "ok",
+		DataJsonBytes: reminderJsonBytes,
 	})
 }
 
@@ -141,10 +155,17 @@ func (handler *RemindHandler) handleAll(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	userRemindersJsonBytes, err := json.Marshal(user.Reminders)
+	if err != nil {
+		log.Errorf("error marshaling user [%s] reminders: %s", user.Username, err.Error())
+		sendSimpleErrResponse(w, http.StatusInternalServerError, "marshaling error")
+		return
+	}
+
 	sendResp(w, http.StatusOK, Response{
-		Ok:      true,
-		Message: "ok",
-		Data:    user.Reminders,
+		Ok:            true,
+		Message:       "ok",
+		DataJsonBytes: userRemindersJsonBytes,
 	})
 }
 

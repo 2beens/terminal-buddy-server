@@ -14,7 +14,7 @@ func NewUser(username, passHashed string) *User {
 	}
 }
 
-func (u *User) GetReminder(id string) *Reminder {
+func (u *User) GetReminder(id int) *Reminder {
 	for _, r := range u.Reminders {
 		if r.Id == id {
 			return r

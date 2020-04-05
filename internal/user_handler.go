@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -47,10 +48,17 @@ func (handler *UserHandler) handleLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	userJsonBytes, err := json.Marshal(user)
+	if err != nil {
+		log.Errorf("error marshaling user [%s]: %s", user.Username, err.Error())
+		sendSimpleErrResponse(w, http.StatusInternalServerError, "marshaling error")
+		return
+	}
+
 	sendResp(w, http.StatusOK, Response{
-		Ok:      true,
-		Message: "ok",
-		Data:    user,
+		Ok:            true,
+		Message:       "ok",
+		DataJsonBytes: userJsonBytes,
 	})
 }
 

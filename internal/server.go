@@ -75,25 +75,25 @@ func sendResp(w http.ResponseWriter, statusCode int, response Response) {
 
 func sendSimpleResponse(w http.ResponseWriter, message string) {
 	sendResp(w, http.StatusOK, Response{
-		Ok:      true,
-		Message: message,
-		Data:    nil,
+		Ok:            true,
+		Message:       message,
+		DataJsonBytes: nil,
 	})
 }
 
 func sendSimpleErrResponse(w http.ResponseWriter, statusCode int, message string) {
 	sendResp(w, statusCode, Response{
-		Ok:      false,
-		Message: message,
-		Data:    nil,
+		Ok:            false,
+		Message:       message,
+		DataJsonBytes: nil,
 	})
 }
 
 func sendSimpleBadRequestResponse(w http.ResponseWriter, message string) {
 	sendResp(w, http.StatusBadRequest, Response{
-		Ok:      false,
-		Message: message,
-		Data:    nil,
+		Ok:            false,
+		Message:       message,
+		DataJsonBytes: nil,
 	})
 }
 
