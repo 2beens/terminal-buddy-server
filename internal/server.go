@@ -19,11 +19,11 @@ func NewServer() *Server {
 	return server
 }
 
-func (s *Server) Serve(port string) {
+func (s *Server) Serve(port int) {
 	memDb := NewMemDb()
 	router := s.routerSetup(memDb)
 
-	ipAndPort := fmt.Sprintf("%s:%s", "localhost", port)
+	ipAndPort := fmt.Sprintf("%s:%d", "localhost", port)
 	httpServer := &http.Server{
 		Handler:      router,
 		Addr:         ipAndPort,

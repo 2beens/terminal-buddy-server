@@ -2,6 +2,7 @@ package main
 
 import (
 	"TerminalBuddyServer/internal"
+	"flag"
 	"os"
 	"strings"
 
@@ -12,8 +13,12 @@ func main() {
 	setupTraceLoggingToStdout()
 	log.Debug("starting ...")
 
+	port := flag.Int("port", 8080, "port number")
+	flag.Parse()
+	log.Debugf("using port %d", *port)
+
 	server := internal.NewServer()
-	server.Serve("8080")
+	server.Serve(*port)
 }
 
 func setupTraceLoggingToStdout() {
