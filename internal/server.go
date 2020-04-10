@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,79 +8,33 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/go-pg/pg/v9"
-	"github.com/go-pg/pg/v9/orm"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
 type Server struct {
-	db *pg.DB
+	db BuddyDb
 }
 
-func NewServer(recreateDb bool) *Server {
+func NewServer(dbType BuddyDbType, recreateDb bool) *Server {
 	server := &Server{}
 
-	server.db = pg.Connect(&pg.Options{
-		ApplicationName: "terminal-buddy",
-		User:            "termbuddy",
-		Database:        "termbuddydb",
-	})
+	if dbType == InMemDB {
+		server.db = NewMemDb()
+	} else if dbType == PsDB {
+		var err error
+		if server.db, err = NewPostgresDBClient(recreateDb); err != nil {
+			panic(err)
+		}
+	} else {
+		panic("unknown DB type")
+	}
 
-	if !server.DbOk() {
+	if !server.db.DbOk() {
 		panic("DB connection not happy ...")
 	}
 
-	err := server.createSchema(recreateDb)
-	if err != nil {
-		panic(err)
-	}
-
 	return server
-}
-
-func (s *Server) createSchema(recreateDb bool) error {
-	if recreateDb {
-		for _, model := range []interface{}{(*User)(nil), (*Reminder)(nil)} {
-			err := s.db.DropTable(model, &orm.DropTableOptions{
-				IfExists: true,
-				Cascade:  true,
-			})
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	for _, model := range []interface{}{(*User)(nil), (*Reminder)(nil)} {
-		err := s.db.CreateTable(model, &orm.CreateTableOptions{
-			IfNotExists: true,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	admin := &User{
-		Username:     "serj",
-		PasswordHash: fmt.Sprintf("%x", md5.Sum([]byte("serj"))),
-		Reminders:    nil,
-	}
-
-	err := s.db.Insert(admin)
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
-}
-
-func (s *Server) DbOk() bool {
-	_, err := s.db.Exec("SELECT 1")
-	if err != nil {
-		return false
-	}
-	return true
 }
 
 func (s *Server) Serve(port int) {

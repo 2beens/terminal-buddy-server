@@ -1,15 +1,17 @@
 package internal
 
-import (
-	"errors"
-)
-
-var errorUserNotFound = errors.New("user not found")
-
 // TODO: solve multi thread problems
 
 type MemDb struct {
 	users map[string]*User
+}
+
+func (db *MemDb) DbOk() bool {
+	return true
+}
+
+func (db *MemDb) Close() error {
+	return nil
 }
 
 func NewMemDb() *MemDb {
