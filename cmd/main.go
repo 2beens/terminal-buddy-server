@@ -14,10 +14,14 @@ func main() {
 	log.Debug("starting ...")
 
 	port := flag.Int("port", 8080, "port number")
+	recreateDb := flag.Bool("recreate-db", false, "drop current DB and create from scratch")
 	flag.Parse()
 	log.Debugf("using port %d", *port)
+	if *recreateDb {
+		log.Warn("will recreate DB")
+	}
 
-	server := internal.NewServer()
+	server := internal.NewServer(*recreateDb)
 	server.Serve(*port)
 }
 

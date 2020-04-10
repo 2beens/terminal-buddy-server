@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-pg/pg/v9"
+	"github.com/go-pg/pg/v9/orm"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,18 +19,61 @@ type Server struct {
 	db *pg.DB
 }
 
-func NewServer() *Server {
+func NewServer(recreateDb bool) *Server {
 	server := &Server{}
 
 	server.db = pg.Connect(&pg.Options{
-		User: "serj",
+		ApplicationName: "terminal-buddy",
+		User:            "termbuddy",
+		Database:        "termbuddydb",
 	})
 
 	if !server.DbOk() {
-		log.Warn("DB connection not happy ...")
+		panic("DB connection not happy ...")
+	}
+
+	err := server.createSchema(recreateDb)
+	if err != nil {
+		panic(err)
 	}
 
 	return server
+}
+
+func (s *Server) createSchema(recreateDb bool) error {
+	if recreateDb {
+		for _, model := range []interface{}{(*User)(nil), (*Reminder)(nil)} {
+			err := s.db.DropTable(model, &orm.DropTableOptions{
+				IfExists: true,
+				Cascade:  true,
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, model := range []interface{}{(*User)(nil), (*Reminder)(nil)} {
+		err := s.db.CreateTable(model, &orm.CreateTableOptions{
+			IfNotExists: true,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	admin := &User{
+		Username:     "serj",
+		PasswordHash: fmt.Sprintf("%x", md5.Sum([]byte("serj"))),
+		Reminders:    nil,
+	}
+
+	err := s.db.Insert(admin)
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
 }
 
 func (s *Server) DbOk() bool {

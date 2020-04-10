@@ -46,9 +46,11 @@ func (db *MemDb) NewReminder(username string, message string, dueDate int64) err
 		return err
 	}
 
-	id := len(user.Reminders)
-	reminder := NewReminder(id, message, dueDate)
-	user.Reminders = append(user.Reminders, &reminder)
+	reminder := &Reminder{
+		Message: message,
+		DueDate: dueDate,
+	}
+	user.Reminders = append(user.Reminders, reminder)
 
 	return nil
 }
