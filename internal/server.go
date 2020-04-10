@@ -4,19 +4,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
+	"github.com/go-pg/pg/v9"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
 
 type Server struct {
+	db *pg.DB
 }
 
 func NewServer() *Server {
 	server := &Server{}
-	// TODO:
+
+	server.db = pg.Connect(&pg.Options{
+		User: "serj",
+	})
+
+	if !server.DbOk() {
+		log.Warn("DB connection not happy ...")
+	}
+
 	return server
+}
+
+func (s *Server) DbOk() bool {
+	_, err := s.db.Exec("SELECT 1")
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 func (s *Server) Serve(port int) {
@@ -31,8 +51,28 @@ func (s *Server) Serve(port int) {
 		ReadTimeout:  15 * time.Second,
 	}
 
-	log.Infof(" > server listening on: [%s]", ipAndPort)
-	log.Fatal(httpServer.ListenAndServe())
+	chOsInterrupt := make(chan os.Signal, 1)
+	signal.Notify(chOsInterrupt, os.Interrupt)
+
+	go func() {
+		log.Infof(" > server listening on: [%s]", ipAndPort)
+		log.Fatal(httpServer.ListenAndServe())
+	}()
+
+	select {
+	case <-chOsInterrupt:
+		log.Warn("os interrupt received!")
+	}
+	s.shutdown()
+}
+
+func (s *Server) shutdown() {
+	log.Debugf("shutting down DB ...")
+	if err := s.db.Close(); err != nil {
+		log.Errorf("failed to close DB connection: %s", err.Error())
+	} else {
+		log.Debugf("DB shut down")
+	}
 }
 
 func (s *Server) routerSetup(db BuddyDb) *mux.Router {
