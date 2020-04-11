@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
+	log "github.com/sirupsen/logrus"
 )
 
 type PostgresDBClient struct {
@@ -22,6 +23,10 @@ func NewPostgresDBClient(recreateDb bool) (*PostgresDBClient, error) {
 	err := c.createSchema(recreateDb)
 	if err != nil {
 		return nil, err
+	}
+
+	if c.insertAdminUser() {
+		log.Debug("admin user added")
 	}
 
 	return c, nil
@@ -49,20 +54,27 @@ func (c *PostgresDBClient) createSchema(recreateDb bool) error {
 		}
 	}
 
-	admin := &User{
+	return nil
+}
+
+func (c *PostgresDBClient) insertAdminUser() bool {
+	admin := User{
 		Username:     "serj",
 		PasswordHash: fmt.Sprintf("%x", md5.Sum([]byte("serj"))),
 		Reminders:    nil,
 	}
 
-	//TODO: check if admin not exists
-
-	err := c.db.Insert(admin)
+	created, err := c.db.Model(&admin).
+		Column("id").
+		Where("username = ?username").
+		OnConflict("DO NOTHING"). // OnConflict is optional
+		Returning("id").
+		SelectOrInsert()
 	if err != nil {
 		panic(err)
 	}
 
-	return nil
+	return created
 }
 
 func (c *PostgresDBClient) DbOk() bool {
