@@ -81,7 +81,11 @@ func (handler *UserHandler) handleRegister(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user := NewUser(username, passwordHash)
+	user := &User{
+		Username:     username,
+		PasswordHash: passwordHash,
+		Reminders:    []*Reminder{},
+	}
 
 	if err := handler.db.SaveUser(user); err == nil {
 		sendSimpleResponse(w, "ok")

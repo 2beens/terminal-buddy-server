@@ -59,13 +59,13 @@ func (handler *RemindHandler) handleGet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	rid, err := strconv.Atoi(idString)
+	id, err := strconv.ParseInt(idString, 10, 64)
 	if err != nil {
 		sendSimpleBadRequestResponse(w, "id value invalid")
 		return
 	}
 
-	reminder := user.GetReminder(rid)
+	reminder := user.GetReminder(id)
 	if reminder == nil {
 		sendSimpleErrResponse(w, http.StatusNotFound, "not found")
 		return
@@ -128,6 +128,7 @@ func (handler *RemindHandler) handleNew(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err = handler.db.NewReminder(username, message, dueDate); err != nil {
+		log.Errorf("failed to insert new reminder for user %s: %s", user.Username, err.Error())
 		sendSimpleErrResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}

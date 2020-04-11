@@ -1,10 +1,11 @@
 package main
 
 import (
-	"TerminalBuddyServer/internal"
 	"flag"
 	"os"
 	"strings"
+
+	"TerminalBuddyServer/internal"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -14,10 +15,24 @@ func main() {
 	log.Debug("starting ...")
 
 	port := flag.Int("port", 8080, "port number")
+	dbTypeParam := flag.String("db-type", "ps", "in memory DB (mem) or Postgres (ps)")
+	recreateDb := flag.Bool("recreate-db", false, "drop current DB and create from scratch")
 	flag.Parse()
 	log.Debugf("using port %d", *port)
+	if *recreateDb {
+		log.Warn("will recreate DB")
+	}
 
-	server := internal.NewServer()
+	if *dbTypeParam != "ps" && *dbTypeParam != "mem" {
+		panic("unknown db type: " + *dbTypeParam)
+	}
+
+	var dbType = internal.InMemDB
+	if *dbTypeParam == "ps" {
+		dbType = internal.PsDB
+	}
+
+	server := internal.NewServer(dbType, *recreateDb)
 	server.Serve(*port)
 }
 

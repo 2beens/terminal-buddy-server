@@ -1,15 +1,17 @@
 package internal
 
-import (
-	"errors"
-)
-
-var errorUserNotFound = errors.New("user not found")
-
 // TODO: solve multi thread problems
 
 type MemDb struct {
 	users map[string]*User
+}
+
+func (db *MemDb) DbOk() bool {
+	return true
+}
+
+func (db *MemDb) Close() error {
+	return nil
 }
 
 func NewMemDb() *MemDb {
@@ -46,9 +48,11 @@ func (db *MemDb) NewReminder(username string, message string, dueDate int64) err
 		return err
 	}
 
-	id := len(user.Reminders)
-	reminder := NewReminder(id, message, dueDate)
-	user.Reminders = append(user.Reminders, &reminder)
+	reminder := &Reminder{
+		Message: message,
+		DueDate: dueDate,
+	}
+	user.Reminders = append(user.Reminders, reminder)
 
 	return nil
 }

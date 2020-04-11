@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -11,17 +13,34 @@ import (
 )
 
 type Server struct {
+	db BuddyDb
 }
 
-func NewServer() *Server {
+func NewServer(dbType BuddyDbType, recreateDb bool) *Server {
 	server := &Server{}
-	// TODO:
+
+	if dbType == InMemDB {
+		server.db = NewMemDb()
+		log.Println("using in memory DB")
+	} else if dbType == PsDB {
+		var err error
+		if server.db, err = NewPostgresDBClient(recreateDb); err != nil {
+			panic(err)
+		}
+		log.Println("using Postgres DB")
+	} else {
+		panic("unknown DB type")
+	}
+
+	if !server.db.DbOk() {
+		panic("DB connection not happy ...")
+	}
+
 	return server
 }
 
 func (s *Server) Serve(port int) {
-	memDb := NewMemDb()
-	router := s.routerSetup(memDb)
+	router := s.routerSetup()
 
 	ipAndPort := fmt.Sprintf("%s:%d", "localhost", port)
 	httpServer := &http.Server{
@@ -31,11 +50,31 @@ func (s *Server) Serve(port int) {
 		ReadTimeout:  15 * time.Second,
 	}
 
-	log.Infof(" > server listening on: [%s]", ipAndPort)
-	log.Fatal(httpServer.ListenAndServe())
+	chOsInterrupt := make(chan os.Signal, 1)
+	signal.Notify(chOsInterrupt, os.Interrupt)
+
+	go func() {
+		log.Infof(" > server listening on: [%s]", ipAndPort)
+		log.Fatal(httpServer.ListenAndServe())
+	}()
+
+	select {
+	case <-chOsInterrupt:
+		log.Warn("os interrupt received!")
+	}
+	s.shutdown()
 }
 
-func (s *Server) routerSetup(db BuddyDb) *mux.Router {
+func (s *Server) shutdown() {
+	log.Debugf("shutting down DB ...")
+	if err := s.db.Close(); err != nil {
+		log.Errorf("failed to close DB connection: %s", err.Error())
+	} else {
+		log.Debugf("DB shut down")
+	}
+}
+
+func (s *Server) routerSetup() *mux.Router {
 	log.Trace("setting routes")
 	r := mux.NewRouter()
 
@@ -48,10 +87,10 @@ func (s *Server) routerSetup(db BuddyDb) *mux.Router {
 	})
 
 	// handle register
-	NewUserHandler(db, r.PathPrefix("/user").Subrouter())
+	NewUserHandler(s.db, r.PathPrefix("/user").Subrouter())
 
 	// handle remind
-	NewRemindHandler(db, r.PathPrefix("/remind").Subrouter())
+	NewRemindHandler(s.db, r.PathPrefix("/remind").Subrouter())
 
 	// middleware
 	r.Use(s.getLoggingMiddleware())
