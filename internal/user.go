@@ -2,9 +2,9 @@ package internal
 
 type User struct {
 	Id           int64       `json:"-"`
-	Username     string      `json:"username"`
+	Username     string      `json:"username" pg:",unique,notnull"`
 	PasswordHash string      `json:"-"`
-	Reminders    []*Reminder `json:"reminders"`
+	Reminders    []*Reminder `json:"reminders" pg:"-"`
 }
 
 func (u *User) GetReminder(id int64) *Reminder {

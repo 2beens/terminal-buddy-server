@@ -18,6 +18,7 @@ func NewPostgresDBClient(recreateDb bool) (*PostgresDBClient, error) {
 	c := &PostgresDBClient{db: pg.Connect(&pg.Options{
 		ApplicationName: "terminal-buddy",
 		User:            "termbuddy",
+		Password:        "termbuddy",
 		Database:        "termbuddydb",
 	})}
 
@@ -104,18 +105,16 @@ func (c *PostgresDBClient) AllUsers() []*User {
 }
 
 func (c *PostgresDBClient) SaveUser(user *User) error {
-	created, err := c.db.Model(*user).
-		Column("id").
-		Where("username = ?username").
-		OnConflict("(id) DO UPDATE").
-		//Set("reminders = EXCLUDED.reminders").	// TODO: chech if needed
+	res, err := c.db.Model(user).
 		Returning("id").
-		SelectOrInsert()
+		OnConflict("(id) DO UPDATE").
+		Set("password_hash = EXCLUDED.password_hash").
+		Insert()
 	if err != nil {
 		return err
 	}
-	if !created {
-		return errors.New("internal server error, user not saved")
+	if res.RowsAffected() <= 0 {
+		return errors.New("user not saved")
 	}
 	return nil
 }
@@ -130,23 +129,56 @@ func (c *PostgresDBClient) GetUser(username string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	userReminders, err := c.getUserReminders(user.Id)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get user %s reminders: %w", username, err)
+	}
+
+	user.Reminders = userReminders
+
 	return user, nil
+}
+
+func (c *PostgresDBClient) getUserReminders(userId int64) ([]*Reminder, error) {
+	var remindersFromDb []Reminder
+	err := c.db.Model(&remindersFromDb).
+		Where("user_id = ?", userId).
+		Select()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get reminders for user %d: %w", userId, err)
+	}
+
+	var reminders []*Reminder
+	for _, r := range remindersFromDb {
+		reminders = append(reminders, &r)
+	}
+
+	return reminders, nil
 }
 
 func (c *PostgresDBClient) NewReminder(username string, message string, dueDate int64) error {
 	user, err := c.GetUser(username)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot find user %s: %w", username, err)
 	}
 
 	reminder := &Reminder{
+		UserId:  user.Id,
 		Message: message,
 		DueDate: dueDate,
 	}
 
-	user.Reminders = append(user.Reminders, reminder)
+	res, err := c.db.Model(reminder).
+		Returning("id").
+		Insert()
+	if err != nil {
+		return err
+	}
 
-	// TODO: do we need a separate table for reminders
+	if res.RowsAffected() <= 0 {
+		return errors.New("reminder not stored")
+	}
 
-	return c.SaveUser(user)
+	return nil
 }

@@ -128,6 +128,7 @@ func (handler *RemindHandler) handleNew(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err = handler.db.NewReminder(username, message, dueDate); err != nil {
+		log.Errorf("failed to insert new reminder for user %s: %s", user.Username, err.Error())
 		sendSimpleErrResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
