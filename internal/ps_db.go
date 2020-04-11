@@ -2,6 +2,7 @@ package internal
 
 import (
 	"crypto/md5"
+	"errors"
 	"fmt"
 
 	"github.com/go-pg/pg/v9"
@@ -90,17 +91,62 @@ func (c *PostgresDBClient) Close() error {
 }
 
 func (c *PostgresDBClient) AllUsers() []*User {
-	return nil
+	var users []User
+	err := c.db.Model(&users).Select()
+	if err != nil {
+		panic(err)
+	}
+	var allUsers []*User
+	for _, u := range users {
+		allUsers = append(allUsers, &u)
+	}
+	return allUsers
 }
 
 func (c *PostgresDBClient) SaveUser(user *User) error {
+	created, err := c.db.Model(*user).
+		Column("id").
+		Where("username = ?username").
+		OnConflict("(id) DO UPDATE").
+		//Set("reminders = EXCLUDED.reminders").	// TODO: chech if needed
+		Returning("id").
+		SelectOrInsert()
+	if err != nil {
+		return err
+	}
+	if !created {
+		return errors.New("internal server error, user not saved")
+	}
 	return nil
 }
 
 func (c *PostgresDBClient) GetUser(username string) (*User, error) {
-	return nil, nil
+	user := &User{
+		Username: username,
+	}
+	err := c.db.Model(user).
+		Where("username = ?username").
+		Select()
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
 func (c *PostgresDBClient) NewReminder(username string, message string, dueDate int64) error {
-	return nil
+	user, err := c.GetUser(username)
+	if err != nil {
+		return err
+	}
+
+	reminder := &Reminder{
+		Message: message,
+		DueDate: dueDate,
+	}
+
+	user.Reminders = append(user.Reminders, reminder)
+
+	// TODO: do we need a separate table for reminders
+
+	return c.SaveUser(user)
 }

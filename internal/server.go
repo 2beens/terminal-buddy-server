@@ -21,11 +21,13 @@ func NewServer(dbType BuddyDbType, recreateDb bool) *Server {
 
 	if dbType == InMemDB {
 		server.db = NewMemDb()
+		log.Println("using in memory DB")
 	} else if dbType == PsDB {
 		var err error
 		if server.db, err = NewPostgresDBClient(recreateDb); err != nil {
 			panic(err)
 		}
+		log.Println("using Postgres DB")
 	} else {
 		panic("unknown DB type")
 	}
@@ -38,8 +40,7 @@ func NewServer(dbType BuddyDbType, recreateDb bool) *Server {
 }
 
 func (s *Server) Serve(port int) {
-	memDb := NewMemDb()
-	router := s.routerSetup(memDb)
+	router := s.routerSetup()
 
 	ipAndPort := fmt.Sprintf("%s:%d", "localhost", port)
 	httpServer := &http.Server{
@@ -73,7 +74,7 @@ func (s *Server) shutdown() {
 	}
 }
 
-func (s *Server) routerSetup(db BuddyDb) *mux.Router {
+func (s *Server) routerSetup() *mux.Router {
 	log.Trace("setting routes")
 	r := mux.NewRouter()
 
@@ -86,10 +87,10 @@ func (s *Server) routerSetup(db BuddyDb) *mux.Router {
 	})
 
 	// handle register
-	NewUserHandler(db, r.PathPrefix("/user").Subrouter())
+	NewUserHandler(s.db, r.PathPrefix("/user").Subrouter())
 
 	// handle remind
-	NewRemindHandler(db, r.PathPrefix("/remind").Subrouter())
+	NewRemindHandler(s.db, r.PathPrefix("/remind").Subrouter())
 
 	// middleware
 	r.Use(s.getLoggingMiddleware())
