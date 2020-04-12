@@ -1,10 +1,8 @@
-# prod | dev
-env: prod
+env: prod # prod | dev
 
 log:
   level: trace
-  # stdout | file
-  out: file
+  out: file # stdout | file
   file: ./server.log
 
 db:
