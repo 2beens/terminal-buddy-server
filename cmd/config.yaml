@@ -1,0 +1,12 @@
+# prod | dev
+env: prod
+
+log:
+  level: trace
+  # stdout | file
+  out: file
+  file: ./server.log
+
+db:
+  user: termbuddy
+  name: termbuddydb

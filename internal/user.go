@@ -5,6 +5,7 @@ type User struct {
 	Username     string      `json:"username" pg:",unique,notnull"`
 	PasswordHash string      `json:"-"`
 	Reminders    []*Reminder `json:"reminders" pg:"-"`
+	// TODO: maybe add email address and a requirement to verify
 }
 
 func (u *User) GetReminder(id int64) *Reminder {

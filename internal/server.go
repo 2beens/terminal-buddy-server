@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"time"
 
+	"TerminalBuddyServer/config"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,15 +18,17 @@ type Server struct {
 	db BuddyDb
 }
 
-func NewServer(dbType BuddyDbType, recreateDb bool) *Server {
+func NewServer(tbConfig *config.TBConfig, dbType BuddyDbType, dbPassword string, recreateDb bool) *Server {
 	server := &Server{}
+
+	log.Tracef("config: %v", tbConfig)
 
 	if dbType == InMemDB {
 		server.db = NewMemDb()
 		log.Println("using in memory DB")
 	} else if dbType == PsDB {
 		var err error
-		if server.db, err = NewPostgresDBClient(recreateDb); err != nil {
+		if server.db, err = NewPostgresDBClient(tbConfig, dbPassword, recreateDb); err != nil {
 			panic(err)
 		}
 		log.Println("using Postgres DB")

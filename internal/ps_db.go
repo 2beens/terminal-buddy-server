@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"TerminalBuddyServer/config"
+
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
 	log "github.com/sirupsen/logrus"
@@ -14,12 +16,12 @@ type PostgresDBClient struct {
 	db *pg.DB
 }
 
-func NewPostgresDBClient(recreateDb bool) (*PostgresDBClient, error) {
+func NewPostgresDBClient(config *config.TBConfig, dbPassword string, recreateDb bool) (*PostgresDBClient, error) {
 	c := &PostgresDBClient{db: pg.Connect(&pg.Options{
 		ApplicationName: "terminal-buddy",
-		User:            "termbuddy",
-		Password:        "termbuddy",
-		Database:        "termbuddydb",
+		Database:        config.DB.Name,
+		User:            config.DB.User,
+		Password:        dbPassword,
 	})}
 
 	err := c.createSchema(recreateDb)
