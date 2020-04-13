@@ -152,8 +152,8 @@ func (c *PostgresDBClient) getUserReminders(userId int64) ([]*Reminder, error) {
 	}
 
 	var reminders []*Reminder
-	for _, r := range remindersFromDb {
-		reminders = append(reminders, &r)
+	for i, _ := range remindersFromDb {
+		reminders = append(reminders, &remindersFromDb[i])
 	}
 
 	return reminders, nil
