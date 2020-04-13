@@ -11,15 +11,23 @@ import (
 	"TerminalBuddyServer/config"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )
 
 type Server struct {
-	db BuddyDb
+	port int
+	db   BuddyDb
+
+	wsUpgrader          websocket.Upgrader
+	notificationManager *NotificationManager
 }
 
 func NewServer(tbConfig *config.TBConfig, dbType BuddyDbType, dbPassword string, recreateDb bool) *Server {
-	server := &Server{}
+	server := &Server{
+		wsUpgrader: websocket.Upgrader{}, // use default options
+		port:       tbConfig.Port(),
+	}
 
 	log.Tracef("config: %v", tbConfig)
 
@@ -40,13 +48,15 @@ func NewServer(tbConfig *config.TBConfig, dbType BuddyDbType, dbPassword string,
 		panic("DB connection not happy ...")
 	}
 
+	server.notificationManager = NewNotificationManager(server.db)
+
 	return server
 }
 
-func (s *Server) Serve(port int) {
+func (s *Server) Serve() {
 	router := s.routerSetup()
 
-	ipAndPort := fmt.Sprintf("%s:%d", "localhost", port)
+	ipAndPort := fmt.Sprintf("%s:%d", "localhost", s.port)
 	httpServer := &http.Server{
 		Handler:      router,
 		Addr:         ipAndPort,
@@ -62,9 +72,8 @@ func (s *Server) Serve(port int) {
 		log.Fatal(httpServer.ListenAndServe())
 	}()
 
-	notificationManager := NewNotificationManager(s.db)
 	go func() {
-		notificationManager.Start()
+		s.notificationManager.Start()
 	}()
 
 	select {
@@ -89,6 +98,25 @@ func (s *Server) routerSetup() *mux.Router {
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		sendSimpleResponse(w, "WIP")
+	})
+
+	r.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
+		log.Debugf("new websocket client connecting: %s", r.RemoteAddr)
+
+		c, err := s.wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Errorf("WS upgrade error: %s", err.Error())
+			return
+		}
+		defer func() {
+			err := c.Close()
+			if err != nil {
+				log.Errorf("failed to close WS connection: %s", err.Error())
+			}
+		}()
+
+		// pass client connection to notification manager
+		s.notificationManager.NewClient(c)
 	})
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

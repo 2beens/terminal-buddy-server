@@ -3,6 +3,8 @@ package internal
 import (
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,6 +21,23 @@ func NewNotificationManager(db BuddyDb) *NotificationManager {
 	return &NotificationManager{
 		db:           db,
 		stopWorkChan: make(chan Signal, 1),
+	}
+}
+
+func (rm *NotificationManager) NewClient(connClient *websocket.Conn) {
+	// TODO:
+	for {
+		mt, message, err := connClient.ReadMessage()
+		if err != nil {
+			log.Println("read:", err)
+			break
+		}
+		log.Printf("recv: %s", message)
+		err = connClient.WriteMessage(mt, message)
+		if err != nil {
+			log.Println("write:", err)
+			break
+		}
 	}
 }
 

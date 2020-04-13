@@ -35,10 +35,10 @@ func main() {
 		panic("received config is nil")
 	}
 
-	if tbConfig.Log.Out != "file" {
-		setupTraceLoggingToStdout()
+	if tbConfig.LogOutput() == config.FileLogOutput {
+		loggingSetup(tbConfig.LogFilePath(), tbConfig.LogLevel())
 	} else {
-		loggingSetup(tbConfig.Log.File, tbConfig.Log.Level)
+		setupTraceLoggingToStdout()
 	}
 	log.Debug("starting ...")
 
@@ -57,7 +57,7 @@ func main() {
 	}
 
 	server := internal.NewServer(tbConfig, dbType, dbPassword, *recreateDb)
-	server.Serve(*port)
+	server.Serve()
 }
 
 func setupTraceLoggingToStdout() {

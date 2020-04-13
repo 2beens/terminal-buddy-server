@@ -19,8 +19,8 @@ type PostgresDBClient struct {
 func NewPostgresDBClient(config *config.TBConfig, dbPassword string, recreateDb bool) (*PostgresDBClient, error) {
 	c := &PostgresDBClient{db: pg.Connect(&pg.Options{
 		ApplicationName: "terminal-buddy",
-		Database:        config.DB.Name,
-		User:            config.DB.User,
+		Database:        config.DbName(),
+		User:            config.DbUser(),
 		Password:        dbPassword,
 	})}
 
