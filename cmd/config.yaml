@@ -2,7 +2,7 @@ env: prod # prod | dev
 
 log:
   level: trace
-  out: file # stdout | file
+  out: stdout # stdout | file
   file: ./server.log
 
 db:

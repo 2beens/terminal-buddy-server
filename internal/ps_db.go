@@ -100,8 +100,13 @@ func (c *PostgresDBClient) AllUsers() []*User {
 		panic(err)
 	}
 	var allUsers []*User
-	for _, u := range users {
-		allUsers = append(allUsers, &u)
+	for i, _ := range users {
+		user := users[i]
+		user.Reminders, err = c.getUserReminders(user.Id)
+		if err != nil {
+			log.Errorf("err #1 failed to get reminders for user %s", user.Username)
+		}
+		allUsers = append(allUsers, &user)
 	}
 	return allUsers
 }

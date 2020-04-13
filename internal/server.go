@@ -62,6 +62,11 @@ func (s *Server) Serve(port int) {
 		log.Fatal(httpServer.ListenAndServe())
 	}()
 
+	notificationManager := NewNotificationManager(s.db)
+	go func() {
+		notificationManager.Start()
+	}()
+
 	select {
 	case <-chOsInterrupt:
 		log.Warn("os interrupt received!")
