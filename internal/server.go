@@ -29,8 +29,6 @@ func NewServer(tbConfig *config.TBConfig, dbType BuddyDbType, dbPassword string,
 		port:       tbConfig.Port(),
 	}
 
-	log.Tracef("config: %v", tbConfig)
-
 	if dbType == InMemDB {
 		server.db = NewMemDb()
 		log.Println("using in memory DB")

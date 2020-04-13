@@ -25,17 +25,18 @@ func NewNotificationManager(db BuddyDb) *NotificationManager {
 }
 
 func (rm *NotificationManager) NewClient(connClient *websocket.Conn) {
-	// TODO:
 	for {
-		mt, message, err := connClient.ReadMessage()
+		msgType, message, err := connClient.ReadMessage()
 		if err != nil {
-			log.Println("read:", err)
+			log.Errorf("notification manager read message error: %s", err.Error())
 			break
 		}
-		log.Printf("recv: %s", message)
-		err = connClient.WriteMessage(mt, message)
+
+		log.Printf("notification manager received: %s", message)
+
+		err = connClient.WriteMessage(msgType, message)
 		if err != nil {
-			log.Println("write:", err)
+			log.Printf("notification manager write error: %s", err.Error())
 			break
 		}
 	}
