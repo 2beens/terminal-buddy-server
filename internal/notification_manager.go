@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -11,13 +12,10 @@ import (
 const (
 	// Time allowed to write a message to the peer.
 	writeWait = 10 * time.Second
-
 	// Time allowed to read the next pong message from the peer.
 	pongWait = 60 * time.Second
-
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
-
 	// Maximum message size allowed from peer.
 	maxMessageSize = 512
 )
@@ -41,32 +39,7 @@ func NewNotificationManager(db BuddyDb) *NotificationManager {
 		pongWait:            60 * time.Second,
 	}
 
-	go func() {
-		ticker := time.NewTicker(pingPeriod)
-		defer func() {
-			ticker.Stop()
-		}()
-		for {
-			select {
-			case <-ticker.C:
-				if len(nm.notificationClients) > 0 {
-					log.Warnf("scanning %d clients for dead ws connections ...", len(nm.notificationClients))
-				}
-				for username, c := range nm.notificationClients {
-					if err := c.WsConn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-						log.Errorf("failed to SetWriteDeadline: %s", err.Error())
-						log.Warnf("closing client conn %s", c.WsConn.RemoteAddr())
-						delete(nm.notificationClients, username)
-					}
-					if err := c.WsConn.WriteMessage(websocket.PingMessage, nil); err != nil {
-						log.Errorf("failed to write ping message: %s", err.Error())
-						log.Warnf("closing client conn %s", c.WsConn.RemoteAddr())
-						delete(nm.notificationClients, username)
-					}
-				}
-			}
-		}
-	}()
+	go nm.ScanDeadWsConnections()
 
 	return nm
 }
@@ -131,29 +104,38 @@ func (nm *NotificationManager) NewClient(connClient *websocket.Conn) {
 		log.Errorf("failed to send init message to client %s: %s", connClient.RemoteAddr(), err.Error())
 	}
 
-	go func() {
-		for {
-			log.Tracef("waiting for messages from conn client: %s", nc.WsConn.RemoteAddr())
-			msgType, message, err := nc.WsConn.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Tracef("client %s going away (probably)", nc.WsConn.RemoteAddr())
-					delete(nm.notificationClients, nc.User.Username)
-					break
-				}
+	go nm.WatchWsClient(nc)
+}
+
+func (nm *NotificationManager) WatchWsClient(nc *NotificationClient) {
+	for {
+		log.Tracef("waiting for messages from conn client: %s", nc.WsConn.RemoteAddr())
+		msgType, message, err := nc.WsConn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Tracef("client %s going away (probably)", nc.WsConn.RemoteAddr())
+			} else {
 				log.Errorf("notification manager read message error: %s", err.Error())
-				break
 			}
-
-			log.Printf("notification manager received [type %d]: %s", msgType, message)
-
-			err = nc.WsConn.WriteMessage(msgType, message)
-			if err != nil {
-				log.Printf("notification manager write error: %s", err.Error())
-				break
-			}
+			nm.RemoveNotificationClient(nc)
+			break
 		}
-	}()
+
+		log.Printf("notification manager received [type %d]: %s", msgType, message)
+
+		echoedMessage := fmt.Sprintf("[WIP] echo: %s", message)
+		err = nc.WsConn.WriteMessage(msgType, []byte(echoedMessage))
+		if err != nil {
+			log.Printf("notification manager write error: %s", err.Error())
+			nm.RemoveNotificationClient(nc)
+			break
+		}
+	}
+}
+
+func (nm *NotificationManager) RemoveNotificationClient(nc *NotificationClient) {
+	log.Warnf("removing notification client for user %s", nc.User.Username)
+	delete(nm.notificationClients, nc.User.Username)
 }
 
 func (nm *NotificationManager) Start() {
@@ -172,6 +154,35 @@ func (nm *NotificationManager) Start() {
 
 func (nm *NotificationManager) Stop() {
 	nm.stopWorkChan <- EmptySignal
+}
+
+func (nm *NotificationManager) ScanDeadWsConnections() {
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		log.Warn("stopped scanning dead connections")
+	}()
+	for {
+		select {
+		case <-ticker.C:
+			if len(nm.notificationClients) > 0 {
+				log.Warnf("scanning %d clients for dead ws connections ...", len(nm.notificationClients))
+			}
+			for _, c := range nm.notificationClients {
+				// TODO: this is bad
+				//if err := c.WsConn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				//	log.Errorf("failed to SetWriteDeadline: %s", err.Error())
+				//	log.Warnf("closing client conn %s", c.WsConn.RemoteAddr())
+				//	nm.RemoveNotificationClient(c)
+				//}
+				if err := c.WsConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					log.Errorf("failed to write ping message: %s", err.Error())
+					log.Warnf("closing client conn %s", c.WsConn.RemoteAddr())
+					nm.RemoveNotificationClient(c)
+				}
+			}
+		}
+	}
 }
 
 func (nm *NotificationManager) ScanRemindersForUsers(users []*User) {
