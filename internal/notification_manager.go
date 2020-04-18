@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,31 +14,66 @@ var EmptySignal = Signal{}
 type NotificationManager struct {
 	db           BuddyDb
 	stopWorkChan chan Signal
+	wsClients    map[*websocket.Conn]bool
 }
 
 func NewNotificationManager(db BuddyDb) *NotificationManager {
-	return &NotificationManager{
+	nm := &NotificationManager{
 		db:           db,
 		stopWorkChan: make(chan Signal, 1),
+		wsClients:    make(map[*websocket.Conn]bool),
 	}
+
+	go func() {
+		for {
+			select {
+			case <-time.After(1 * time.Minute):
+				if len(nm.wsClients) > 0 {
+					log.Warnf("scanning %d clients for dead ws connections ...", len(nm.wsClients))
+				}
+
+				for c, _ := range nm.wsClients {
+					_ = c
+					// TODO:
+					//if closeErr := connClient.Close(); closeErr != nil {
+					//	log.Errorf("cannot close ws client conn: %s", closeErr.Error())
+					//}
+					//delete(rm.wsClients, connClient)
+				}
+			}
+		}
+	}()
+
+	return nm
 }
 
 func (rm *NotificationManager) NewClient(connClient *websocket.Conn) {
-	for {
-		msgType, message, err := connClient.ReadMessage()
-		if err != nil {
-			log.Errorf("notification manager read message error: %s", err.Error())
-			break
-		}
+	rm.wsClients[connClient] = true
+	log.Debugf("notification manager got new client, total: %d", len(rm.wsClients))
 
-		log.Printf("notification manager received: %s", message)
+	go func() {
+		for {
+			err := connClient.WriteMessage(websocket.TextMessage, []byte("hi from TB server ;)"))
+			if err != nil {
+				log.Errorf("failed to send init message to client %s: %s", connClient.RemoteAddr())
+			}
 
-		err = connClient.WriteMessage(msgType, message)
-		if err != nil {
-			log.Printf("notification manager write error: %s", err.Error())
-			break
+			log.Tracef("waiting for messages from conn client: %s", connClient.RemoteAddr())
+			msgType, message, err := connClient.ReadMessage()
+			if err != nil {
+				log.Errorf("notification manager read message error: %s", err.Error())
+				break
+			}
+
+			log.Printf("notification manager received [type %d]: %s", msgType, message)
+
+			err = connClient.WriteMessage(msgType, message)
+			if err != nil {
+				log.Printf("notification manager write error: %s", err.Error())
+				break
+			}
 		}
-	}
+	}()
 }
 
 func (rm *NotificationManager) Start() {
@@ -50,7 +84,7 @@ func (rm *NotificationManager) Start() {
 			return
 		case <-time.After(time.Minute):
 			allUsers := rm.db.AllUsers()
-			log.Printf("will scan for reminder notifications for %d users ...", len(allUsers))
+			//log.Printf("will scan for reminder notifications for %d users ...", len(allUsers))
 			rm.ScanRemindersForUsers(allUsers)
 		}
 	}
@@ -68,7 +102,7 @@ func (rm *NotificationManager) ScanRemindersForUsers(users []*User) {
 }
 
 func (rm *NotificationManager) scanNotificationsForUser(now time.Time, user *User) {
-	log.Tracef("scanning %d reminders for user: %s", len(user.Reminders), user.Username)
+	//log.Tracef("scanning %d reminders for user: %s", len(user.Reminders), user.Username)
 	for _, reminder := range user.Reminders {
 		dueDate := time.Unix(reminder.DueDate, 0).Truncate(time.Minute)
 		if now.Equal(dueDate) {

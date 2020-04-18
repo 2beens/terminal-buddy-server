@@ -24,8 +24,17 @@ type Server struct {
 }
 
 func NewServer(tbConfig *config.TBConfig, dbType BuddyDbType, dbPassword string, recreateDb bool) *Server {
+	wsUpgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+
+	wsUpgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
+
 	server := &Server{
-		wsUpgrader: websocket.Upgrader{}, // use default options
+		wsUpgrader: wsUpgrader,
 		port:       tbConfig.Port(),
 	}
 
@@ -106,12 +115,6 @@ func (s *Server) routerSetup() *mux.Router {
 			log.Errorf("WS upgrade error: %s", err.Error())
 			return
 		}
-		defer func() {
-			err := c.Close()
-			if err != nil {
-				log.Errorf("failed to close WS connection: %s", err.Error())
-			}
-		}()
 
 		// pass client connection to notification manager
 		s.notificationManager.NewClient(c)
