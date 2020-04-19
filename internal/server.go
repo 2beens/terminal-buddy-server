@@ -11,17 +11,32 @@ import (
 	"TerminalBuddyServer/config"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )
 
 type Server struct {
-	db BuddyDb
+	port int
+	db   BuddyDb
+
+	wsUpgrader          websocket.Upgrader
+	notificationManager *NotificationManager
 }
 
 func NewServer(tbConfig *config.TBConfig, dbType BuddyDbType, dbPassword string, recreateDb bool) *Server {
-	server := &Server{}
+	wsUpgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
 
-	log.Tracef("config: %v", tbConfig)
+	wsUpgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
+
+	server := &Server{
+		wsUpgrader: wsUpgrader,
+		port:       tbConfig.Port(),
+	}
 
 	if dbType == InMemDB {
 		server.db = NewMemDb()
@@ -40,13 +55,15 @@ func NewServer(tbConfig *config.TBConfig, dbType BuddyDbType, dbPassword string,
 		panic("DB connection not happy ...")
 	}
 
+	server.notificationManager = NewNotificationManager(server.db)
+
 	return server
 }
 
-func (s *Server) Serve(port int) {
+func (s *Server) Serve() {
 	router := s.routerSetup()
 
-	ipAndPort := fmt.Sprintf("%s:%d", "localhost", port)
+	ipAndPort := fmt.Sprintf("%s:%d", "localhost", s.port)
 	httpServer := &http.Server{
 		Handler:      router,
 		Addr:         ipAndPort,
@@ -60,6 +77,10 @@ func (s *Server) Serve(port int) {
 	go func() {
 		log.Infof(" > server listening on: [%s]", ipAndPort)
 		log.Fatal(httpServer.ListenAndServe())
+	}()
+
+	go func() {
+		s.notificationManager.Start()
 	}()
 
 	select {
@@ -84,6 +105,19 @@ func (s *Server) routerSetup() *mux.Router {
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		sendSimpleResponse(w, "WIP")
+	})
+
+	r.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
+		log.Debugf("new websocket client connecting: %s", r.RemoteAddr)
+
+		c, err := s.wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Errorf("WS upgrade error: %s", err.Error())
+			return
+		}
+
+		// pass client connection to notification manager
+		s.notificationManager.NewClient(c)
 	})
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

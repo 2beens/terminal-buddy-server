@@ -19,8 +19,8 @@ type PostgresDBClient struct {
 func NewPostgresDBClient(config *config.TBConfig, dbPassword string, recreateDb bool) (*PostgresDBClient, error) {
 	c := &PostgresDBClient{db: pg.Connect(&pg.Options{
 		ApplicationName: "terminal-buddy",
-		Database:        config.DB.Name,
-		User:            config.DB.User,
+		Database:        config.DbName(),
+		User:            config.DbUser(),
 		Password:        dbPassword,
 	})}
 
@@ -100,8 +100,13 @@ func (c *PostgresDBClient) AllUsers() []*User {
 		panic(err)
 	}
 	var allUsers []*User
-	for _, u := range users {
-		allUsers = append(allUsers, &u)
+	for i, _ := range users {
+		user := users[i]
+		user.Reminders, err = c.getUserReminders(user.Id)
+		if err != nil {
+			log.Errorf("err #1 failed to get reminders for user %s", user.Username)
+		}
+		allUsers = append(allUsers, &user)
 	}
 	return allUsers
 }
@@ -152,8 +157,8 @@ func (c *PostgresDBClient) getUserReminders(userId int64) ([]*Reminder, error) {
 	}
 
 	var reminders []*Reminder
-	for _, r := range remindersFromDb {
-		reminders = append(reminders, &r)
+	for i, _ := range remindersFromDb {
+		reminders = append(reminders, &remindersFromDb[i])
 	}
 
 	return reminders, nil

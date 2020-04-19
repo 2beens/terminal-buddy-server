@@ -1,10 +1,21 @@
-env: prod # prod | dev
+env: dev # prod | dev
 
-log:
-  level: trace
-  out: file # stdout | file
-  file: ./server.log
+production:
+  port: 8088
+  log:
+    level: trace
+    out: file # stdout | file
+    file: ./server.log
+  db:
+    user: termbuddy
+    name: termbuddydb
 
-db:
-  user: termbuddy
-  name: termbuddydb
+dev:
+  port: 8080
+  log:
+    level: trace
+    out: stdout # stdout | file
+    file: ./server.log
+  db:
+    user: termbuddy
+    name: termbuddydb

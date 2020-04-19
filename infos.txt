@@ -1,2 +1,6 @@
 project layout:
 https://github.com/golang-standards/project-layout
+
+postgres orm used:
+https://github.com/go-pg/pg
+

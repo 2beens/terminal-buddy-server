@@ -30,9 +30,14 @@ func NewRemindHandler(db BuddyDb, remindRouter *mux.Router) {
 func (handler *RemindHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	username := vars["username"]
+	if username == "" {
+		sendSimpleErrResponse(w, http.StatusNotAcceptable, "username missing")
+		return
+	}
+
 	user, err := handler.db.GetUser(username)
-	if len(username) == 0 || err != nil {
-		sendSimpleErrResponse(w, http.StatusNotAcceptable, "username missing / cannot get user")
+	if err != nil {
+		sendSimpleErrResponse(w, http.StatusNotAcceptable, "cannot get user")
 		return
 	}
 
@@ -118,8 +123,9 @@ func (handler *RemindHandler) handleNew(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	log.Println("message: " + message)
-	log.Println("dueDateStr: " + dueDateStr)
+	log.Debugf("new reminder added for: %s", user.Username)
+	log.Debugln("message: \t" + message)
+	log.Debugln("dueDateStr: \t" + dueDateStr)
 
 	dueDate, err := strconv.ParseInt(dueDateStr, 10, 64)
 	if err != nil {
