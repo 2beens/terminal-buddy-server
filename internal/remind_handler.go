@@ -123,8 +123,9 @@ func (handler *RemindHandler) handleNew(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	log.Println("message: " + message)
-	log.Println("dueDateStr: " + dueDateStr)
+	log.Debugf("new reminder added for: %s", user.Username)
+	log.Debugln("message: \t" + message)
+	log.Debugln("dueDateStr: \t" + dueDateStr)
 
 	dueDate, err := strconv.ParseInt(dueDateStr, 10, 64)
 	if err != nil {

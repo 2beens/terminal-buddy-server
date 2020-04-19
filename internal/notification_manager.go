@@ -10,14 +10,10 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
 	// Time allowed to read the next pong message from the peer.
 	pongWait = 60 * time.Second
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
 )
 
 type Signal struct{}
@@ -59,7 +55,9 @@ func (nm *NotificationManager) NewClient(connClient *websocket.Conn) {
 	err = json.Unmarshal(initMessage, initData)
 	if err != nil {
 		log.Errorf("failed to read init data for %s", connClient.RemoteAddr())
-		connClient.WriteMessage(websocket.TextMessage, []byte("corrupt init data"))
+		if err := connClient.WriteMessage(websocket.TextMessage, []byte("corrupt init data")); err != nil {
+			log.Errorf("ws corrupt init file, failed to send error response to client %s: %s", initData.Username, err.Error())
+		}
 		connClient.Close()
 		return
 	}
@@ -67,14 +65,18 @@ func (nm *NotificationManager) NewClient(connClient *websocket.Conn) {
 	user, err := nm.db.GetUser(initData.Username)
 	if err != nil {
 		log.Errorf("ws conn failed, cannot find user %s", initData.Username)
-		connClient.WriteMessage(websocket.TextMessage, []byte("wrong user data"))
+		if err := connClient.WriteMessage(websocket.TextMessage, []byte("wrong user data")); err != nil {
+			log.Errorf("ws cannot fund user, failed to send error response to client %s: %s", initData.Username, err.Error())
+		}
 		connClient.Close()
 		return
 	}
 
 	if user.PasswordHash != initData.PasswordHash {
 		log.Errorf("ws conn failed, wrong credentials for %s", initData.Username)
-		connClient.WriteMessage(websocket.TextMessage, []byte("wrong user data"))
+		if err := connClient.WriteMessage(websocket.TextMessage, []byte("wrong user data")); err != nil {
+			log.Errorf("ws wrong credentials, failed to send error response to client %s: %s", initData.Username, err.Error())
+		}
 		connClient.Close()
 		return
 	}
@@ -87,7 +89,7 @@ func (nm *NotificationManager) NewClient(connClient *websocket.Conn) {
 	nm.notificationClients[user.Username] = nc
 
 	connClient.SetPongHandler(func(string) error {
-		log.Tracef("sending pong to %s", connClient.RemoteAddr())
+		//log.Tracef("sending pong to %s", connClient.RemoteAddr())
 		if err := connClient.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 			log.Errorf("failed to SetReadDeadline: %s", err.Error())
 		}
@@ -166,15 +168,9 @@ func (nm *NotificationManager) ScanDeadWsConnections() {
 		select {
 		case <-ticker.C:
 			if len(nm.notificationClients) > 0 {
-				log.Warnf("scanning %d clients for dead ws connections ...", len(nm.notificationClients))
+				log.Tracef("scanning %d clients for dead ws connections ...", len(nm.notificationClients))
 			}
 			for _, c := range nm.notificationClients {
-				// TODO: this is bad
-				//if err := c.WsConn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				//	log.Errorf("failed to SetWriteDeadline: %s", err.Error())
-				//	log.Warnf("closing client conn %s", c.WsConn.RemoteAddr())
-				//	nm.RemoveNotificationClient(c)
-				//}
 				if err := c.WsConn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					log.Errorf("failed to write ping message: %s", err.Error())
 					log.Warnf("closing client conn %s", c.WsConn.RemoteAddr())
