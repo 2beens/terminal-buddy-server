@@ -21,5 +21,7 @@ type BuddyDb interface {
 	AllUsers() []*User
 	SaveUser(user *User) error
 	GetUser(username string) (*User, error)
+	AckReminder(reminderId int64, ack bool) error
+	SaveReminder(reminder *Reminder) error
 	NewReminder(username string, message string, dueDate int64) error
 }

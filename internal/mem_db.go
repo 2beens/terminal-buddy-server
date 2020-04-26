@@ -1,5 +1,7 @@
 package internal
 
+import "fmt"
+
 // TODO: solve multi thread problems
 
 type MemDb struct {
@@ -40,6 +42,16 @@ func (db *MemDb) GetUser(username string) (*User, error) {
 		}
 	}
 	return nil, errorUserNotFound
+}
+
+func (db *MemDb) AckReminder(reminderId int64, ack bool) error {
+	// TODO:
+	return fmt.Errorf("not implemented yet")
+}
+
+func (db *MemDb) SaveReminder(reminder *Reminder) error {
+	// TODO:
+	return fmt.Errorf("not implemented yet")
 }
 
 func (db *MemDb) NewReminder(username string, message string, dueDate int64) error {

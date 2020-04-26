@@ -164,6 +164,37 @@ func (c *PostgresDBClient) getUserReminders(userId int64) ([]*Reminder, error) {
 	return reminders, nil
 }
 
+func (c *PostgresDBClient) AckReminder(reminderId int64, ack bool) error {
+	var reminder Reminder
+	_, err := c.db.Model(&reminder).
+		Set("ack = ?", ack).
+		Where("id = ?", reminderId).
+		Returning("*").
+		Update()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *PostgresDBClient) SaveReminder(reminder *Reminder) error {
+	res, err := c.db.Model(reminder).
+		Returning("id").
+		OnConflict("(id) DO UPDATE").
+		Set("ack = EXCLUDED.ack").
+		Set("message = EXCLUDED.message").
+		Set("due_date = EXCLUDED.due_date").
+		Insert()
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() <= 0 {
+		return errors.New("user not saved")
+	}
+	return nil
+}
+
 func (c *PostgresDBClient) NewReminder(username string, message string, dueDate int64) error {
 	user, err := c.GetUser(username)
 	if err != nil {
@@ -174,6 +205,7 @@ func (c *PostgresDBClient) NewReminder(username string, message string, dueDate 
 		UserId:  user.Id,
 		Message: message,
 		DueDate: dueDate,
+		Ack:     false,
 	}
 
 	res, err := c.db.Model(reminder).

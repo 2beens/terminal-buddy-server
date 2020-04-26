@@ -125,10 +125,27 @@ func (nm *NotificationManager) WatchWsClient(nc *NotificationClient) {
 
 		log.Printf("notification manager received [type %d]: %s", msgType, message)
 
+		// try to read agentMessage
+		var agentMessage AgentMessage
+		err = json.Unmarshal(message, &agentMessage)
+		if err != nil {
+			log.Errorf("unmarshal agentMessage error, incoming message is not agentMessage")
+		} else {
+			if agentMessage.Message == "ack" {
+				if err := nm.db.AckReminder(agentMessage.ReminderId, true); err != nil {
+					log.Errorf("failed to ACK reminder %d: %s", agentMessage.ReminderId, err)
+				} else {
+					log.Tracef("reminder %d ACKd", agentMessage.ReminderId)
+				}
+			}
+			continue
+		}
+
 		echoedMessage := fmt.Sprintf("[WIP] echo: %s", message)
 		err = nc.WsConn.WriteMessage(msgType, []byte(echoedMessage))
 		if err != nil {
 			log.Printf("notification manager write error: %s", err.Error())
+			// TODO: maybe check error before killing WS connection
 			nm.RemoveNotificationClient(nc)
 			break
 		}
@@ -167,9 +184,9 @@ func (nm *NotificationManager) ScanDeadWsConnections() {
 	for {
 		select {
 		case <-ticker.C:
-			if len(nm.notificationClients) > 0 {
-				log.Tracef("scanning %d clients for dead ws connections ...", len(nm.notificationClients))
-			}
+			//if len(nm.notificationClients) > 0 {
+			//	log.Tracef("scanning %d clients for dead ws connections ...", len(nm.notificationClients))
+			//}
 			for _, c := range nm.notificationClients {
 				if err := c.WsConn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					log.Errorf("failed to write ping message: %s", err.Error())
@@ -182,6 +199,12 @@ func (nm *NotificationManager) ScanDeadWsConnections() {
 }
 
 func (nm *NotificationManager) ScanRemindersForUsers(users []*User) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("ScanRemindersForUsers recovered from panic: %s", r)
+		}
+	}()
+
 	now := time.Now().Truncate(time.Minute)
 	for _, user := range users {
 		nm.scanNotificationsForUser(now, user)
@@ -194,14 +217,27 @@ func (nm *NotificationManager) scanNotificationsForUser(now time.Time, user *Use
 		dueDate := time.Unix(reminder.DueDate, 0).Truncate(time.Minute)
 		if now.Equal(dueDate) {
 			nm.sendNotification(user, reminder)
+		} else if !reminder.Ack && now.After(dueDate) { // reminder was not set - agent was offline
+			nm.sendNotification(user, reminder)
 		}
 	}
 }
 
 func (nm *NotificationManager) sendNotification(user *User, reminder *Reminder) {
 	log.Tracef("sending notification (%s) to user %s", reminder.Message, user.Username)
+
+	reminderMessage := ReminderMessage{
+		Id:      reminder.Id,
+		Message: reminder.Message,
+	}
+	reminderMessageBytes, err := json.Marshal(reminderMessage)
+	if err != nil {
+		log.Errorf("marshal reminder message failed for reminder: %s", reminder.Id)
+		return
+	}
+
 	wsConn := nm.notificationClients[user.Username].WsConn
-	err := wsConn.WriteMessage(websocket.TextMessage, []byte(reminder.Message))
+	err = wsConn.WriteMessage(websocket.TextMessage, reminderMessageBytes)
 	if err != nil {
 		log.Errorf("failed to send reminder message to client %s: %s", wsConn.RemoteAddr(), err.Error())
 	}
