@@ -1,11 +1,16 @@
 package internal
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"time"
+)
 
 // TODO: solve multi thread problems
 
 type MemDb struct {
-	users map[string]*User
+	users         map[int64]*User
+	reminder2user map[int64]int64
 }
 
 func (db *MemDb) DbOk() bool {
@@ -18,7 +23,8 @@ func (db *MemDb) Close() error {
 
 func NewMemDb() *MemDb {
 	return &MemDb{
-		users: make(map[string]*User),
+		users:         make(map[int64]*User),
+		reminder2user: make(map[int64]int64),
 	}
 }
 
@@ -31,27 +37,66 @@ func (db *MemDb) AllUsers() []*User {
 }
 
 func (db *MemDb) SaveUser(user *User) error {
-	db.users[user.Username] = user
+	db.users[user.Id] = user
 	return nil
 }
 
 func (db *MemDb) GetUser(username string) (*User, error) {
-	for u, _ := range db.users {
-		if username == u {
-			return db.users[u], nil
+	for id, _ := range db.users {
+		if db.users[id].Username == username {
+			return db.users[id], nil
 		}
 	}
 	return nil, errorUserNotFound
 }
 
 func (db *MemDb) AckReminder(reminderId int64, ack bool) error {
-	// TODO:
-	return fmt.Errorf("not implemented yet")
+	userId, ok := db.reminder2user[reminderId]
+	if !ok {
+		return fmt.Errorf("cannot find coresponding user")
+	}
+
+	user, ok := db.users[userId]
+	if !ok {
+		return fmt.Errorf("cannot find coresponding user")
+	}
+
+	reminder, err := db.getReminder(user.Id, reminderId)
+	if err != nil {
+		return err
+	}
+
+	reminder.Ack = true
+
+	return nil
+}
+
+func (db *MemDb) getReminder(userId, reminderId int64) (*Reminder, error) {
+	user, ok := db.users[userId]
+	if !ok {
+		return nil, errors.New("cannot find user")
+	}
+
+	for i, _ := range user.Reminders {
+		if user.Reminders[i].Id == reminderId {
+			return user.Reminders[i], nil
+		}
+	}
+
+	return nil, errors.New("not found")
 }
 
 func (db *MemDb) SaveReminder(reminder *Reminder) error {
-	// TODO:
-	return fmt.Errorf("not implemented yet")
+	foundReminder, err := db.getReminder(reminder.UserId, reminder.Id)
+	if foundReminder == nil {
+		return fmt.Errorf("reminder not found")
+	}
+
+	foundReminder.Ack = reminder.Ack
+	foundReminder.Message = reminder.Message
+	foundReminder.DueDate = reminder.DueDate
+
+	return nil
 }
 
 func (db *MemDb) NewReminder(username string, message string, dueDate int64) error {
@@ -60,11 +105,15 @@ func (db *MemDb) NewReminder(username string, message string, dueDate int64) err
 		return err
 	}
 
-	reminder := &Reminder{
+	reminderId := time.Now().Unix()
+
+	db.reminder2user[reminderId] = user.Id
+
+	user.Reminders = append(user.Reminders, &Reminder{
+		Id:      reminderId,
 		Message: message,
 		DueDate: dueDate,
-	}
-	user.Reminders = append(user.Reminders, reminder)
+	})
 
 	return nil
 }
