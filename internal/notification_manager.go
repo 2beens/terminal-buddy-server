@@ -224,7 +224,7 @@ func (nm *NotificationManager) scanNotificationsForUser(now time.Time, user *Use
 }
 
 func (nm *NotificationManager) sendNotification(user *User, reminder *Reminder) {
-	log.Tracef("sending notification (%s) to user %s", reminder.Message, user.Username)
+	log.Tracef("will try sending notification (%s) to user %s", reminder.Message, user.Username)
 
 	reminderMessage := ReminderMessage{
 		Id:      reminder.Id,
@@ -236,9 +236,14 @@ func (nm *NotificationManager) sendNotification(user *User, reminder *Reminder) 
 		return
 	}
 
-	wsConn := nm.notificationClients[user.Username].WsConn
-	err = wsConn.WriteMessage(websocket.TextMessage, reminderMessageBytes)
+	nc, ok := nm.notificationClients[user.Username]
+	if !ok {
+		//log.Tracef("agent for user %s not connected, skip sending notification", user.Username)
+		return
+	}
+
+	err = nc.WsConn.WriteMessage(websocket.TextMessage, reminderMessageBytes)
 	if err != nil {
-		log.Errorf("failed to send reminder message to client %s: %s", wsConn.RemoteAddr(), err.Error())
+		log.Errorf("failed to send reminder message to client %s: %s", nc.WsConn.RemoteAddr(), err.Error())
 	}
 }
