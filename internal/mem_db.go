@@ -88,8 +88,8 @@ func (db *MemDb) getReminder(userId, reminderId int64) (*Reminder, error) {
 
 func (db *MemDb) SaveReminder(reminder *Reminder) error {
 	foundReminder, err := db.getReminder(reminder.UserId, reminder.Id)
-	if foundReminder == nil {
-		return fmt.Errorf("reminder not found")
+	if err != nil {
+		return err
 	}
 
 	foundReminder.Ack = reminder.Ack
